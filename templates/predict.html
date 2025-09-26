@@ -1,0 +1,228 @@
+{% extends "base.html" %}
+{% block title %}Loan Default Prediction{% endblock %}
+
+{% block content %}
+
+<style>
+    .realtime-container {
+        margin-top: 40px;
+        padding: 30px; 
+        background-color: #f8f9fa;
+        border-radius: 8px;
+        text-align: center;
+        border: 1px solid #dee2e6;
+    }
+    .gauge-container {
+        width: 300px; 
+        height: 150px; 
+        margin: 15px auto;
+        position: relative;
+        overflow: hidden;
+        border-radius: 150px 150px 0 0;
+        background: conic-gradient(from -90deg at 50% 100%, #28a745, #ffc107, #dc3545);
+    }
+    .gauge-cover {
+        position: absolute;
+        width: 100%;
+        height: 100%;
+        background: #f8f9fa;
+        border-radius: 150px 150px 0 0;
+        clip-path: polygon(0% 100%, 100% 100%, 100% 20%, 0% 20%);
+    }
+    .gauge-needle {
+        position: absolute;
+        bottom: 0;
+        left: 50%;
+        width: 4px; 
+        height: 145px; 
+        background: #343a40;
+        transform-origin: bottom center;
+        transition: transform 0.5s ease;
+        transform: translateX(-50%) rotate(0deg);
+        border-radius: 2px;
+    }
+    .gauge-center-cap {
+        position: absolute;
+        bottom: -12px; 
+        left: 50%;
+        transform: translateX(-50%);
+        width: 24px; 
+        height: 24px; 
+        background: #343a40;
+        border-radius: 50%;
+        border: 2px solid #f8f9fa;
+    }
+    .probability-display {
+        font-size: 2.5em; 
+        font-weight: bold;
+        margin-top: 10px; 
+        color: #343a40;
+        position: relative;
+    }
+    /* Style to hide the prediction result block initially */
+    #predictionResultBlock {
+        display: none;
+    }
+</style>
+
+<div class="prediction-container">
+    <div class="prediction-header">
+        <h1>Loan Default Risk Assessment</h1>
+        <p>Enter the applicant's information below to evaluate their loan default probability.</p>
+    </div>
+    
+    <form class="prediction-form" id="loanPredictionForm" onsubmit="event.preventDefault(); handleFormSubmission();">
+        <div class="form-sections">
+             <div class="form-section">
+                <h3>Personal Information</h3>
+                <div class="form-group">
+                    <label for="age">Applicant's Age <span class="required">*</span></label>
+                    <input type="number" id="age" name="age" class="form-control" required min="18" max="100" placeholder="e.g., 45">
+                </div>
+                <div class="form-group">
+                    <label for="dependents">Number of Dependents <span class="required">*</span></label>
+                    <input type="number" id="dependents" name="dependents" class="form-control" required min="0" max="20" placeholder="e.g., 2">
+                </div>
+                <div class="form-group">
+                    <label for="monthlyIncome">Total Monthly Income <span class="required">*</span></label>
+                    <input type="number" id="monthlyIncome" name="monthlyIncome" class="form-control" required min="0" step="0.01" placeholder="e.g., 50000">
+                </div>
+                <div class="form-group">
+                    <label for="debtRatio">Debt-to-Income Ratio <span class="required">*</span></label>
+                    <input type="number" id="debtRatio" name="debtRatio" class="form-control" required min="0" step="0.01" placeholder="e.g., 0.4">
+                </div>
+                <div class="form-group">
+                    <label for="revolvingUtilization">Credit Card & Line of Credit Utilization <span class="required">*</span></label>
+                    <input type="number" id="revolvingUtilization" name="revolvingUtilization" class="form-control" required min="0" step="0.01" placeholder="e.g., 0.8">
+                </div>
+            </div>
+            
+            <div class="form-section">
+                <h3>Credit History</h3>
+                <div class="form-group">
+                    <label for="late30To59Days">Payments Late (30-59 Days) <span class="required">*</span></label>
+                    <input type="number" id="late30To59Days" name="late30To59Days" class="form-control" required min="0" placeholder="e.g., 1">
+                </div>
+                <div class="form-group">
+                    <label for="late60To89Days">Payments Late (60-89 Days) <span class="required">*</span></label>
+                    <input type="number" id="late60To89Days" name="late60To89Days" class="form-control" required min="0" placeholder="e.g., 0">
+                </div>
+                <div class="form-group">
+                    <label for="late90PlusDays">90+ Days Late <span class="required">*</span></label>
+                    <input type="number" id="late90PlusDays" name="late90PlusDays" class="form-control" required min="0" placeholder="e.g., 0">
+                </div>
+                <div class="form-group">
+                    <label for="openCreditLines">Total Open Loans & Credit Lines <span class="required">*</span></label>
+                    <input type="number" id="openCreditLines" name="openCreditLines" class="form-control" required min="0" placeholder="e.g., 8">
+                </div>
+                <div class="form-group">
+                    <label for="realEstateLoans">Number of Mortgages & Real Estate Loans <span class="required">*</span></label>
+                    <input type="number" id="realEstateLoans" name="realEstateLoans" class="form-control" required min="0" placeholder="e.g., 1">
+                </div>
+            </div>
+        </div>
+        
+        <div class="form-footer">
+            <button type="reset" class="reset-btn">Reset Form</button>
+            <button type="submit" class="submit-btn">Calculate Risk</button>
+        </div>
+    </form>
+    
+    <div id="predictionResultBlock" class="prediction-result animate-fade-in">
+        <h3 class="result-title">Risk Assessment Result</h3>
+        <div class="result-indicator">
+            <div class="risk-meter">
+                <div id="resultRiskLevel" class="risk-level"></div>
+            </div>
+            <div id="resultScore" class="result-score"></div>
+            <div class="probability-score">
+                Default Probability: <strong id="resultProbability"></strong>
+            </div>
+        </div>
+        <p id="resultMessage" class="result-message"></p>
+    </div>
+
+    <div class="realtime-container">
+        <h3>Real-Time Risk Analysis</h3>
+        <p>The gauge below updates after you click "Calculate Risk".</p>
+        <div class="gauge-container">
+            <div class="gauge-cover"></div>
+            <div class="gauge-needle" id="gaugeNeedle"></div>
+            <div class="gauge-center-cap"></div>
+        </div>
+        <div class="probability-display" id="probabilityDisplay">0.00%</div>
+    </div>
+</div>
+
+<script>
+    async function handleFormSubmission() {
+        const form = document.getElementById('loanPredictionForm');
+        const formData = new FormData(form);
+        const data = Object.fromEntries(formData.entries());
+
+        try {
+            const response = await fetch('/predict', { // Changed to the main /predict endpoint
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(data)
+            });
+
+            if (!response.ok) throw new Error('Network response was not ok');
+
+            const result = await response.json();
+            
+            // Update both the gauge AND the main result block
+            updateGauge(parseFloat(result.probability));
+            updatePredictionResult(result.prediction, result.probability);
+
+        } catch (error) {
+            console.error('Error fetching prediction:', error);
+            // Optionally, show an error message on the page
+        }
+    }
+
+    function updateGauge(probability) {
+        const needle = document.getElementById('gaugeNeedle');
+        const display = document.getElementById('probabilityDisplay');
+        const rotation = (probability / 100) * 180 - 90;
+
+        needle.style.transform = `translateX(-50%) rotate(${rotation}deg)`;
+        display.textContent = `${probability.toFixed(2)}%`;
+        
+        if (probability > 60) {
+            display.style.color = '#dc3545'; // Red
+        } else if (probability > 30) {
+            display.style.color = '#ffc107'; // Yellow
+        } else {
+            display.style.color = '#28a745'; // Green
+        }
+    }
+
+    function updatePredictionResult(prediction, probability) {
+        const resultBlock = document.getElementById('predictionResultBlock');
+        const riskLevel = document.getElementById('resultRiskLevel');
+        const score = document.getElementById('resultScore');
+        const probDisplay = document.getElementById('resultProbability');
+        const message = document.getElementById('resultMessage');
+
+        // Remove old classes and add new ones based on prediction
+        resultBlock.classList.remove('high-risk', 'low-risk');
+        riskLevel.classList.remove('high', 'low');
+
+        if (prediction === 1) {
+            resultBlock.classList.add('high-risk');
+            riskLevel.classList.add('high');
+            score.textContent = 'High Risk';
+            message.innerHTML = 'This customer profile indicates a <strong>high probability of loan default</strong>.';
+        } else {
+            resultBlock.classList.add('low-risk');
+            riskLevel.classList.add('low');
+            score.textContent = 'Low Risk';
+            message.innerHTML = 'This customer profile indicates a <strong>low probability of loan default</strong>.';
+        }
+
+        probDisplay.textContent = `${probability}%`;
+        resultBlock.style.display = 'block'; // Make the result block visible
+    }
+</script>
+{% endblock %}
